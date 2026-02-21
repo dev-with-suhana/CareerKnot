@@ -46,28 +46,18 @@ def landing_page():
         st.session_state.user_role = role
         st.rerun()
 
+# --- SIMPLE RESUME CHECK FUNCTION ---
+def analyze_resume_basic(uploaded_file):
 
-
-    words = text.split()
-    word_count = len(words)
-
-    skills_db = [
-        "python","java","react","aws","mongodb","sql","machine learning",
-        "data science","html","css","javascript"
-    ]
-
-    found_skills = []
-    for skill in skills_db:
-        if re.search(rf"\b{skill}\b", text.lower()):
-            found_skills.append(skill.title())
+    file_size = uploaded_file.size / 1024  # in KB
 
     strength = "Weak"
-    if word_count > 300:
+    if file_size > 200:
         strength = "Average"
-    if word_count > 600:
+    if file_size > 500:
         strength = "Strong"
 
-    return text, word_count, found_skills, strength
+    return file_size, strength
 
 # --- STUDENT PORTAL ---
 def student_view():
@@ -77,7 +67,8 @@ def student_view():
             ["Dashboard", "My Profile"],
             icons=["grid", "person"]
         )
-        if st.button("Logout"): logout()
+        if st.button("Logout"):
+            logout()
 
     st.title(choice)
 
@@ -98,24 +89,14 @@ def student_view():
 
         if uploaded_pdf:
             with st.spinner("Analyzing resume..."):
-                text, words, skills, strength = analyze_resume(uploaded_pdf)
+                size, strength = analyze_resume_basic(uploaded_pdf)
 
             st.success("Resume analyzed successfully ✅")
 
             st.markdown("<div class='custom-card'>", unsafe_allow_html=True)
-            st.write(f"**Total Words:** {words}")
+            st.write(f"**File Size:** {round(size,2)} KB")
             st.write(f"**Profile Strength:** {strength}")
-
-            if skills:
-                st.write("**Detected Skills:**")
-                st.write(", ".join(skills))
-            else:
-                st.warning("No recognizable skills found")
-
             st.markdown("</div>", unsafe_allow_html=True)
-
-            with st.expander("📄 View Resume Text"):
-                st.write(text)
 
 # --- MENTOR ---
 def mentor_view():
@@ -137,4 +118,3 @@ else:
         mentor_view()
     else:
         admin_view()
-
