@@ -1,4 +1,80 @@
-# --- 5. STUDENT PORTAL --- (Updated content)
+import streamlit as st
+from streamlit_option_menu import option_menu
+import pandas as pd
+import plotly.express as px
+
+# --- 1. PAGE CONFIGURATION ---
+st.set_page_config(page_title="CareerKnot", page_icon="🔗", layout="wide")
+
+# --- 2. MASSIVE NAVY BRANDING & CSS ---
+st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@800&family=Inter:wght@400;600&display=swap');
+    
+    .stApp { background-color: #f8faff; }
+
+    .brand-title {
+        font-family: 'Montserrat', sans-serif;
+        font-weight: 800;
+        font-size: 5.5rem;
+        background: linear-gradient(90deg, #001f3f, #0074D9);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-align: center;
+        margin-bottom: 0px;
+    }
+    
+    .brand-subtitle {
+        font-family: 'Inter', sans-serif;
+        color: #444;
+        font-size: 1.8rem;
+        text-align: center;
+        margin-top: -15px;
+        margin-bottom: 3rem;
+    }
+
+    [data-testid="stSidebar"] { background-color: #001f3f !important; }
+    [data-testid="stSidebar"] * { color: white !important; }
+
+    .custom-card {
+        background-color: white;
+        padding: 25px;
+        border-radius: 15px;
+        border-left: 8px solid #001f3f;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 3. SESSION STATE ---
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "user_role" not in st.session_state:
+    st.session_state.user_role = None
+
+def logout():
+    st.session_state.logged_in = False
+    st.rerun()
+
+# --- 4. LANDING / LOGIN PAGE ---
+def landing_page():
+    st.markdown("<h1 class='brand-title'>CareerKnot</h1>", unsafe_allow_html=True)
+    st.markdown("<p class='brand-subtitle'>Bridging Student Ambition and Industry Reality</p>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        tabs = st.tabs(["🔐 Login", "📝 Register"])
+        with tabs[0]:
+            email = st.text_input("Email")
+            pwd = st.text_input("Password", type="password")
+            role = st.selectbox("Role", ["Student", "Mentor", "Admin"])
+            if st.button("Enter Portal", use_container_width=True):
+                st.session_state.logged_in = True
+                st.session_state.user_role = role
+                st.rerun()
+
+# --- 5. STUDENT PORTAL ---
 def student_view():
     with st.sidebar:
         st.markdown("## CareerKnot")
@@ -79,7 +155,7 @@ def student_view():
         st.plotly_chart(fig, use_container_width=True)
         st.info("Compare sectors to find the best fit for your skills.")
 
-# --- 6. MENTOR PORTAL --- (Added content for all menu items)
+# --- 6. MENTOR PORTAL ---
 def mentor_view():
     with st.sidebar:
         st.markdown("## CareerKnot")
@@ -115,7 +191,7 @@ def mentor_view():
         st.checkbox("Show Availability to Students", value=True)
         st.info("Update your settings to manage how students can reach you.")
 
-# --- 7. ADMIN PORTAL --- (Added content for all menu items)
+# --- 7. ADMIN PORTAL ---
 def admin_view():
     with st.sidebar:
         st.markdown("## CareerKnot")
@@ -142,3 +218,11 @@ def admin_view():
         st.checkbox("Enable System Notifications", value=True)
         st.checkbox("Allow New Registrations", value=True)
         st.info("Configure platform-wide settings here.")
+
+# --- MAIN ROUTER ---
+if not st.session_state.logged_in:
+    landing_page()
+else:
+    if st.session_state.user_role == "Student": student_view()
+    elif st.session_state.user_role == "Mentor": mentor_view()
+    elif st.session_state.user_role == "Admin": admin_view()
