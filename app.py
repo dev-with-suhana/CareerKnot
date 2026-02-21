@@ -8,42 +8,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="CareerKnot AI", page_icon="🔗", layout="wide")
 
-# ---------------- CUSTOM LIGHT THEME ----------------
-st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Roboto+Slab:wght@700&display=swap');
-
-    /* APP BACKGROUND */
-    .stApp { 
-        background-color: #fefefe;
-        color: #111;
-        font-family: 'Inter', sans-serif;
-    }
-
-    /* SIDEBAR */
-    [data-testid="stSidebar"] {
-        background-color: #f0f0f0 !important;
-        color: #111 !important;
-    }
-    [data-testid="stSidebar"] .css-1d391kg {color: #111 !important;}
-
-    /* TITLES */
-    h1, h2, h3, h4 {
-        font-family: 'Roboto Slab', serif;
-        color: #111;
-    }
-
-    /* CUSTOM CARDS */
-    .custom-card {
-        background-color: #ffffff;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0px 3px 10px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 # ---------------- DATABASE ----------------
 MONGO_URI = st.secrets["MONGO_URI"]
 client = MongoClient(MONGO_URI)
@@ -108,7 +72,7 @@ def login_user(email, password, role):
 
 # ---------------- LANDING PAGE ----------------
 def landing_page():
-    st.markdown("<h1 style='font-family:Roboto Slab'>🔗 CareerKnot – AI Networking Platform</h1>", unsafe_allow_html=True)
+    st.title("🔗 CareerKnot – AI Networking Platform")
     st.subheader("Connecting Students with Industry Professionals")
 
     tab1, tab2 = st.tabs(["Login", "Register"])
@@ -151,9 +115,8 @@ def student_portal():
     if choice == "Logout":
         logout()
 
-    st.title(f"🎓 Student - {choice}")
+    st.title("🎓 Student Dashboard")
 
-    # Dashboard / Profile
     if choice == "Dashboard":
         skills = st.text_input("Your Skills (comma separated)", student.get("skills",""))
         interest = st.text_input("Career Interest", student.get("career_interest",""))
@@ -162,12 +125,11 @@ def student_portal():
                                     {"$set":{"skills":skills,"career_interest":interest}})
             st.success("Profile Updated")
 
-    # AI Mentor Match
     elif choice == "AI Mentor Match":
         mentors = list(mentors_col.find())
         matches = match_mentors(student, mentors)
         for mentor, score in matches:
-            st.markdown(f"<div class='custom-card'>👨‍🏫 {mentor['name']} | Match Score: {round(score*100,2)}%</div>", unsafe_allow_html=True)
+            st.write(f"👨‍🏫 {mentor['name']} | Match Score: {round(score*100,2)}%")
             if st.button(f"Request {mentor['email']}"):
                 requests_col.insert_one({"student_email": student["email"],
                                          "mentor_email": mentor["email"],
@@ -177,20 +139,22 @@ def student_portal():
     elif choice == "My Requests":
         reqs = requests_col.find({"student_email": student["email"]})
         for r in reqs:
-            st.markdown(f"<div class='custom-card'>Mentor: {r['mentor_email']} | Status: {r['status']}</div>", unsafe_allow_html=True)
+            st.write("Mentor:", r["mentor_email"], "| Status:", r["status"])
 
     elif choice == "Career Roadmap":
         roadmap = career_roadmap(student.get("skills",""))
         for step in roadmap:
-            st.markdown(f"<div class='custom-card'>✔ {step}</div>", unsafe_allow_html=True)
+            st.write("✔", step)
 
     elif choice == "Internships":
         for job in internships_col.find():
-            st.markdown(f"<div class='custom-card'>💼 {job.get('title')} | {job.get('company')}</div>", unsafe_allow_html=True)
+            st.write("💼", job.get("title"), "|", job.get("company"))
 
     elif choice == "Industry Insights":
         for post in industry_col.find().sort("date",-1):
-            st.markdown(f"<div class='custom-card'><h4>{post['title']}</h4>{post['content']}<br>Posted by: {post['mentor']}</div>", unsafe_allow_html=True)
+            st.subheader(post["title"])
+            st.write(post["content"])
+            st.write("Posted by:", post["mentor"])
 
     elif choice == "Chat":
         mentor_email = st.text_input("Mentor Email")
@@ -201,7 +165,7 @@ def student_portal():
         messages = chats_col.find({"$or":[{"sender": student["email"], "receiver": mentor_email},
                                           {"sender": mentor_email, "receiver": student["email"]}]}).sort("timestamp",1)
         for m in messages:
-            st.markdown(f"<div class='custom-card'>{m['sender']}: {m['message']}</div>", unsafe_allow_html=True)
+            st.write(m["sender"], ":", m["message"])
 
 # ---------------- MENTOR PORTAL ----------------
 def mentor_portal():
@@ -226,8 +190,10 @@ def mentor_portal():
 
     elif choice == "Requests":
         reqs = requests_col.find({"mentor_email": mentor["email"]})
+        if reqs.count() == 0:
+            st.info("No requests yet.")
         for r in reqs:
-            st.markdown(f"<div class='custom-card'>Student: {r['student_email']} | Status: {r['status']}</div>", unsafe_allow_html=True)
+            st.write("Student:", r["student_email"], "| Status:", r["status"])
             if st.button(f"Accept {r['_id']}"):
                 requests_col.update_one({"_id":r["_id"]},{"$set":{"status":"Accepted"}})
                 st.success("Accepted")
@@ -260,25 +226,35 @@ def admin_portal():
     st.title(f"🛠 Admin - {choice}")
 
     if choice == "Dashboard":
-        st.markdown("<div class='custom-card'>Welcome Admin! Use the sidebar to manage users and posts.</div>", unsafe_allow_html=True)
+        st.write("Welcome Admin! Use the sidebar options to view or manage data.")
 
     elif choice == "Students":
         students = list(students_col.find())
+        if len(students) == 0:
+            st.info("No students yet.")
         for s in students:
-            st.markdown(f"<div class='custom-card'>Name: {s['name']} | Email: {s['email']} | Skills: {s['skills']}</div>", unsafe_allow_html=True)
+            st.write("Name:", s['name'], "| Email:", s['email'], "| Skills:", s['skills'])
 
     elif choice == "Mentors":
         mentors = list(mentors_col.find())
+        if len(mentors) == 0:
+            st.info("No mentors yet.")
         for m in mentors:
-            st.markdown(f"<div class='custom-card'>Name: {m['name']} | Email: {m['email']} | Skills: {m['skills']} | Industry: {m['industry']}</div>", unsafe_allow_html=True)
+            st.write("Name:", m['name'], "| Email:", m['email'], "| Skills:", m['skills'], "| Industry:", m['industry'])
 
     elif choice == "Internships":
-        for job in internships_col.find():
-            st.markdown(f"<div class='custom-card'>{job['title']} | {job['company']} | Posted by: {job['mentor']}</div>", unsafe_allow_html=True)
+        jobs = list(internships_col.find())
+        if len(jobs) == 0:
+            st.info("No internships posted yet.")
+        for job in jobs:
+            st.write(job['title'], "|", job['company'], "| Posted by:", job['mentor'])
 
     elif choice == "Industry Posts":
-        for post in industry_col.find().sort("date",-1):
-            st.markdown(f"<div class='custom-card'>{post['title']} | {post['content']} | Posted by: {post['mentor']}</div>", unsafe_allow_html=True)
+        posts = list(industry_col.find().sort("date",-1))
+        if len(posts) == 0:
+            st.info("No posts yet.")
+        for post in posts:
+            st.write(post['title'], "|", post['content'], "| Posted by:", post['mentor'])
 
 # ---------------- MAIN ----------------
 if not st.session_state.logged_in:
