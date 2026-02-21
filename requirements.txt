@@ -4,3 +4,4 @@ pymongo
 dnspython
 scikit-learn
 plotly
+pyPDF2
