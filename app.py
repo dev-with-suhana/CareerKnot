@@ -199,7 +199,7 @@ def admin_view():
             icons=["shield", "people", "briefcase", "gear"], default_index=0)
         if st.button("Logout"): logout()
 
-    st.title(f"Admin Dashboard: {choice}")
+    st.title(f"Admin portal: {choice}")
 
     if choice == "Dashboard":
         st.metric("Total Students", "120")
@@ -226,3 +226,4 @@ else:
     if st.session_state.user_role == "Student": student_view()
     elif st.session_state.user_role == "Mentor": mentor_view()
     elif st.session_state.user_role == "Admin": admin_view()
+
