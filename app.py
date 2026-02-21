@@ -2,7 +2,6 @@ import streamlit as st
 from streamlit_option_menu import option_menu
 import pandas as pd
 import plotly.express as px
-from PyPDF2 import PdfReader
 import re
 
 # --- PAGE CONFIG ---
@@ -47,12 +46,7 @@ def landing_page():
         st.session_state.user_role = role
         st.rerun()
 
-# --- PDF ANALYSIS FUNCTION ---
-def analyze_resume(pdf_file):
-    reader = PdfReader(pdf_file)
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text()
+
 
     words = text.split()
     word_count = len(words)
@@ -143,3 +137,4 @@ else:
         mentor_view()
     else:
         admin_view()
+
