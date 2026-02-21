@@ -2,11 +2,13 @@ import streamlit as st
 from streamlit_option_menu import option_menu
 from pymongo import MongoClient
 from datetime import datetime
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
-# ------------------ PAGE CONFIG ------------------
-st.set_page_config(page_title="CareerKnot", page_icon="🔗", layout="wide")
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(page_title="CareerKnot AI", page_icon="🔗", layout="wide")
 
-# ------------------ DATABASE CONNECTION ------------------
+# ---------------- DATABASE ----------------
 MONGO_URI = st.secrets["MONGO_URI"]
 client = MongoClient(MONGO_URI)
 db = client["careerknot"]
@@ -16,8 +18,10 @@ mentors_col = db["mentors"]
 admins_col = db["admins"]
 requests_col = db["requests"]
 chats_col = db["chats"]
+internships_col = db["internships"]
+industry_col = db["industry_posts"]
 
-# ------------------ SESSION ------------------
+# ---------------- SESSION ----------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "role" not in st.session_state:
@@ -29,9 +33,46 @@ def logout():
     st.session_state.clear()
     st.rerun()
 
-# ------------------ AUTH SYSTEM ------------------
+# ---------------- AI MATCHING FUNCTION ----------------
+def match_mentors(student, mentors):
+    mentor_profiles = [m.get("skills","") + " " + m.get("industry","") for m in mentors]
+    student_profile = student.get("skills","") + " " + student.get("career_interest","")
+
+    docs = mentor_profiles + [student_profile]
+
+    vectorizer = TfidfVectorizer()
+    tfidf = vectorizer.fit_transform(docs)
+
+    scores = cosine_similarity(tfidf[-1], tfidf[:-1]).flatten()
+    ranked = sorted(zip(mentors, scores), key=lambda x: x[1], reverse=True)
+
+    return ranked[:5]
+
+# ---------------- CAREER ROADMAP ----------------
+def career_roadmap(skills):
+    roadmap = []
+
+    if "python" in skills.lower():
+        roadmap += ["Learn DSA", "Build Backend Projects", "Practice APIs", "Apply Backend Jobs"]
+
+    if "machine learning" in skills.lower():
+        roadmap += ["Master Statistics", "Build ML Projects", "Deploy Models", "Apply ML Roles"]
+
+    if "web" in skills.lower():
+        roadmap += ["Learn React/Node", "Build Full Stack Projects", "Deploy Website"]
+
+    return roadmap
+
+# ---------------- AUTH ----------------
 def register_user(name, email, password, role):
-    data = {"name": name, "email": email, "password": password}
+    data = {
+        "name": name,
+        "email": email,
+        "password": password,
+        "skills": "",
+        "career_interest": "",
+        "industry": ""
+    }
 
     if role == "Student":
         students_col.insert_one(data)
@@ -44,10 +85,10 @@ def login_user(email, password, role):
     collection = students_col if role == "Student" else mentors_col if role == "Mentor" else admins_col
     return collection.find_one({"email": email, "password": password})
 
-# ------------------ LANDING PAGE ------------------
+# ---------------- LANDING PAGE ----------------
 def landing_page():
-    st.title("🔗 CareerKnot")
-    st.subheader("Bridging Student Ambition and Industry Reality")
+    st.title("🔗 CareerKnot – AI Networking Platform")
+    st.subheader("Connecting Students with Industry Professionals")
 
     tab1, tab2 = st.tabs(["Login", "Register"])
 
@@ -62,7 +103,6 @@ def landing_page():
                 st.session_state.logged_in = True
                 st.session_state.role = role
                 st.session_state.user_email = email
-                st.success("Login Successful!")
                 st.rerun()
             else:
                 st.error("Invalid Credentials")
@@ -77,62 +117,155 @@ def landing_page():
             register_user(name, email, password, role)
             st.success("Registration Successful!")
 
-# ------------------ STUDENT PORTAL ------------------
+# ---------------- STUDENT PORTAL ----------------
 def student_portal():
+    student = students_col.find_one({"email": st.session_state.user_email})
+
     with st.sidebar:
         choice = option_menu("Student Menu",
-                             ["Dashboard", "Find Mentors", "My Requests", "Chat", "Logout"])
+                             ["Dashboard","AI Mentor Match","My Requests",
+                              "Career Roadmap","Internships",
+                              "Industry Insights","Chat","Logout"])
 
     if choice == "Logout":
         logout()
 
-    st.title("🎓 Student Portal")
+    st.title("🎓 Student Dashboard")
 
+    # Profile Update
     if choice == "Dashboard":
-        st.write("Welcome,", st.session_state.user_email)
+        skills = st.text_input("Your Skills (comma separated)", student.get("skills",""))
+        interest = st.text_input("Career Interest", student.get("career_interest",""))
 
-    elif choice == "Find Mentors":
+        if st.button("Update Profile"):
+            students_col.update_one({"email":student["email"]},
+                                    {"$set":{"skills":skills,"career_interest":interest}})
+            st.success("Profile Updated")
+
+    # AI Mentor Match
+    elif choice == "AI Mentor Match":
         mentors = list(mentors_col.find())
-        for mentor in mentors:
-            st.write("👨‍🏫", mentor["name"], "-", mentor["email"])
+        matches = match_mentors(student, mentors)
+
+        for mentor, score in matches:
+            st.write(f"👨‍🏫 {mentor['name']} | Match Score: {round(score*100,2)}%")
             if st.button(f"Request {mentor['email']}"):
                 requests_col.insert_one({
-                    "student_email": st.session_state.user_email,
+                    "student_email": student["email"],
                     "mentor_email": mentor["email"],
                     "status": "Pending"
                 })
-                st.success("Request Sent!")
+                st.success("Request Sent")
 
+    # Requests
     elif choice == "My Requests":
-        my_requests = requests_col.find({"student_email": st.session_state.user_email})
-        for req in my_requests:
-            st.write("Mentor:", req["mentor_email"], "| Status:", req["status"])
+        reqs = requests_col.find({"student_email": student["email"]})
+        for r in reqs:
+            st.write("Mentor:", r["mentor_email"], "| Status:", r["status"])
 
+    # Career Roadmap
+    elif choice == "Career Roadmap":
+        roadmap = career_roadmap(student.get("skills",""))
+        for step in roadmap:
+            st.write("✔", step)
+
+    # Internships
+    elif choice == "Internships":
+        for job in internships_col.find():
+            st.write("💼", job.get("title"), "|", job.get("company"))
+
+    # Industry Posts
+    elif choice == "Industry Insights":
+        for post in industry_col.find().sort("date",-1):
+            st.subheader(post["title"])
+            st.write(post["content"])
+            st.write("Posted by:", post["mentor"])
+
+    # Chat
     elif choice == "Chat":
         mentor_email = st.text_input("Mentor Email")
-
         message = st.chat_input("Type message")
+
         if message:
             chats_col.insert_one({
-                "sender": st.session_state.user_email,
+                "sender": student["email"],
                 "receiver": mentor_email,
                 "message": message,
                 "timestamp": datetime.now()
             })
 
         messages = chats_col.find({
-            "$or": [
-                {"sender": st.session_state.user_email, "receiver": mentor_email},
-                {"sender": mentor_email, "receiver": st.session_state.user_email}
+            "$or":[
+                {"sender": student["email"], "receiver": mentor_email},
+                {"sender": mentor_email, "receiver": student["email"]}
             ]
-        }).sort("timestamp", 1)
+        }).sort("timestamp",1)
 
-        for msg in messages:
-            st.write(msg["sender"], ":", msg["message"])
+        for m in messages:
+            st.write(m["sender"], ":", m["message"])
 
-# ------------------ MAIN ------------------
+# ---------------- MENTOR PORTAL ----------------
+def mentor_portal():
+    mentor = mentors_col.find_one({"email": st.session_state.user_email})
+
+    with st.sidebar:
+        choice = option_menu("Mentor Menu",
+                             ["Dashboard","Requests",
+                              "Post Internship","Post Industry Insight","Logout"])
+
+    if choice == "Logout":
+        logout()
+
+    st.title("👨‍🏫 Mentor Dashboard")
+
+    if choice == "Dashboard":
+        skills = st.text_input("Your Skills", mentor.get("skills",""))
+        industry = st.text_input("Industry", mentor.get("industry",""))
+
+        if st.button("Update Profile"):
+            mentors_col.update_one({"email":mentor["email"]},
+                                   {"$set":{"skills":skills,"industry":industry}})
+            st.success("Profile Updated")
+
+    elif choice == "Requests":
+        reqs = requests_col.find({"mentor_email": mentor["email"]})
+        for r in reqs:
+            st.write("Student:", r["student_email"], "|", r["status"])
+            if st.button(f"Accept {r['_id']}"):
+                requests_col.update_one({"_id":r["_id"]},{"$set":{"status":"Accepted"}})
+                st.success("Accepted")
+
+    elif choice == "Post Internship":
+        title = st.text_input("Job Title")
+        company = st.text_input("Company Name")
+
+        if st.button("Post Internship"):
+            internships_col.insert_one({
+                "title":title,
+                "company":company,
+                "mentor":mentor["email"],
+                "date":datetime.now()
+            })
+            st.success("Internship Posted")
+
+    elif choice == "Post Industry Insight":
+        title = st.text_input("Post Title")
+        content = st.text_area("Content")
+
+        if st.button("Publish"):
+            industry_col.insert_one({
+                "title":title,
+                "content":content,
+                "mentor":mentor["email"],
+                "date":datetime.now()
+            })
+            st.success("Posted Successfully")
+
+# ---------------- MAIN ----------------
 if not st.session_state.logged_in:
     landing_page()
 else:
     if st.session_state.role == "Student":
         student_portal()
+    elif st.session_state.role == "Mentor":
+        mentor_portal()
